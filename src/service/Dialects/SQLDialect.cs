@@ -4,8 +4,8 @@ using Endor.TinyServices.OData.Common.Enums;
 using Endor.TinyServices.OData.Common.Exceptions;
 using Endor.TinyServices.OData.Common.Helper;
 using Endor.TinyServices.OData.Interfaces.Dialect;
+using Endor.TinyServices.OData.Interfaces.Schema;
 using Endor.TinyServices.OData.Parser;
-using Endor.TinyServices.OData.Schema.Interfaces;
 using Endor.TinyServices.OData.Sql.Builder;
 
 namespace Endor.TinyServices.OData.Sql.Dialects;
@@ -19,21 +19,25 @@ public class SQLDialect : IQueryDialect
 		_provider = provider;
 	}
 
-	public async Task<ODataBuilder> Init(string entityName)
+	public async Task<ODataBuilder> Init(string entityName, string tenantId = null)
 	{
-		var item = (await _provider.GetEntity(entityName));
+		var item = await _provider.GetEntity(entityName);
 		if (item == null) throw new EntityNotFoundException(entityName);
 
 		var builder = new SQLQueryBuilder();
 		builder.BaseEntityName = entityName;
+		builder.TenantId = tenantId;
 		builder.TableName = AttributeHelper.GetTableNameFromEntity(item);
+		var tableName = builder.TableName;
+
+		if (builder.TenantId != null) tableName = $"[{builder.TenantId}].[{tableName}]";
 
 		var tableAlias = builder.GetNewEntityIndex();
 
-		var properties = item.GetProperties().Where(i => i.PropertyType.Namespace == "System").ToList();
+		var properties = item.GetProperties().Where(i => i.PropertyType.Namespace == "System" || i.PropertyType.IsEnum).ToList();
 		builder.AddMetadata(new SQLMetaParameters() { Entity = item, Name = tableAlias, Properties = properties });
 
-		builder.SetQuery($"SELECT {builder.GetColumnsString()} FROM {builder.TableName} AS [{tableAlias}]");
+		builder.SetQuery($"{builder.ToString()}SELECT {builder.GetColumnsString()} FROM {tableName} AS [{tableAlias}]");
 		return builder;
 	}
 
@@ -69,18 +73,21 @@ public class SQLDialect : IQueryDialect
 
 	public async Task ExpandStatement(string entityName, IList<(QueryTypeParameter, string)> additionalInfo, ODataBuilder builder)
 	{
-		var item = (await _provider.GetEntity(entityName));
+		var item = await _provider.GetEntity(entityName);
 		if (item == null) throw new EntityNotFoundException(entityName);
 
 		var baseEntityProperties = (await _provider.GetEntity(builder.BaseEntityName)).GetProperties();
 		var refAttribute = AttributeHelper.GetReferenceAttribute(await _provider.GetEntity(builder.BaseEntityName), entityName);
 		var refEntityId = AttributeHelper.GetIdForEntity(item);
 
-		var properties = item.GetProperties().Where(i => i.PropertyType.Namespace == "System").ToList();
+		var properties = item.GetProperties().Where(i => i.PropertyType.Namespace == "System" || i.PropertyType.IsEnum).ToList();
 		var tableAlias = builder.GetNewEntityIndex();
 		var tableName = AttributeHelper.GetTableNameFromEntity(item);
+
+		if (builder.TenantId != null) tableName = $"[{builder.TenantId}].[{tableName}]";
+
 		var meta = new SQLMetaParameters() { Entity = item, Name = tableAlias, TableName = tableName, Properties = properties };
-		
+
 		SQLMetaParameters parameter = (SQLMetaParameters)builder.GetBaseMetaParameter();
 
 		var rawQuery = builder.ToString();
@@ -96,7 +103,7 @@ public class SQLDialect : IQueryDialect
 
 		var beforeJoinStatement = afterFrom.Substring(0, afterTableAliasStringIndex);
 		var afterJoinStatement = afterFrom.Substring(afterTableAliasStringIndex, afterFrom.Length - afterTableAliasStringIndex);
-	
+
 		var newQuery = @$"{beforeFrom},{meta.GetColumnsString()} 
 					{beforeJoinStatement}
 					LEFT JOIN {tableName} AS [{tableAlias}] ON [{tableAlias}].[{refEntityId}] = [{parameter.Name}].[{refAttribute.Name}]
@@ -106,13 +113,21 @@ public class SQLDialect : IQueryDialect
 		builder.SetQuery(newQuery);
 
 		await ProcessAdditionalInfo(entityName, additionalInfo, builder);
+
+		if (additionalInfo != null)
+		{
+			foreach (var expandAdd in additionalInfo.Where(x => x.Item1 == QueryTypeParameter.Expand))
+			{
+				await this.ExpandStatement(expandAdd.Item2, null, builder);
+			}
+		}
 	}
 
 	private async Task ProcessAdditionalInfo(string entityName, IList<(QueryTypeParameter, string)> additionalInfo, ODataBuilder builder)
 	{
-		if (additionalInfo == null || additionalInfo.Count == 0) return;
+		if (additionalInfo == null || additionalInfo.Any(x => x.Item1 != QueryTypeParameter.Select)) return;
 
-		if (additionalInfo.Any(x => x.Item1 != QueryTypeParameter.Select)) throw new ODataParserException($"The operators [{string.Join(',', additionalInfo.Where(x => x.Item1 != QueryTypeParameter.Select).Select(x => x.Item1.ToString()))}] are not supported on Expand statement yet.");
+		//if (additionalInfo.Any(x => x.Item1 != QueryTypeParameter.Select)) throw new ODataParserException($"The operators [{string.Join(',', additionalInfo.Where(x => x.Item1 != QueryTypeParameter.Select).Select(x => x.Item1.ToString()))}] are not supported on Expand statement yet.");
 
 		var properties = additionalInfo.FirstOrDefault(x => x.Item1 == QueryTypeParameter.Select).Item2;
 
@@ -128,7 +143,7 @@ public class SQLDialect : IQueryDialect
 		var filterStatement = result.Read(new SQLDialectConverter(builder));
 
 		var rawQuery = builder.ToString();
-		rawQuery += "WHERE " + filterStatement;
+		rawQuery += " WHERE " + filterStatement;
 
 		builder.SetQuery(rawQuery);
 	}
@@ -137,7 +152,7 @@ public class SQLDialect : IQueryDialect
 	{
 		var entity = builder.BaseEntityName;
 
-		if(property.Contains('/'))
+		if (property.Contains('/'))
 		{
 			var rawData = property.Split('/');
 			entity = rawData[0];
@@ -146,9 +161,9 @@ public class SQLDialect : IQueryDialect
 
 		if (!builder.ExistsPropertyMeta(entity, property))
 		{
-			if(!(await _provider.ExistsProperty(entity, property)))
+			if (!await _provider.ExistsProperty(entity, property))
 				throw new ODataParserException($"Unable to get property [{property}] from entity [{entity}] over order by clause");
-			else 
+			else
 				throw new ODataParserException($"The property [{property}] must be include into select statement to be used over order by clause");
 		}
 
@@ -175,7 +190,7 @@ public class SQLDialect : IQueryDialect
 		{
 			var selectStatement = $"[{alias}].[{item}] {alias}_{item}";
 			var index = query.IndexOf(selectStatement);
-			if(index == -1) throw new ODataParserException($"Unable to find selected property on query.");
+			if (index == -1) throw new ODataParserException($"Unable to find selected property on query.");
 
 			query = query.Remove(index, selectStatement.Length);
 

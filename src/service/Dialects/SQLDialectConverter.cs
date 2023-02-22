@@ -14,13 +14,13 @@ public class SQLDialectConverter : IDialectExpressionConverter
 		_builder = builder;
 	}
 
-	public string TransformExpression(object data)
+	public string TransformExpression(object data, object context = null)
 	{
-		if(data is EntityOperatorType)
+		if (data is EntityOperatorType)
 			return ((EntityOperatorType)data).ToString().ToUpper();
 
 		if (data is PropertyOperatorType)
-			return GetPropertyOperatorTypeValue((PropertyOperatorType)data);
+			return GetPropertyOperatorTypeValue((PropertyOperatorType)data, (IPropertyValue)context);
 
 		if (data is IPropertyValue)
 			return GetPropertyValue((IPropertyValue)data);
@@ -28,7 +28,7 @@ public class SQLDialectConverter : IDialectExpressionConverter
 		throw new ODataParserException($"Unable to process value [{data}]");
 	}
 
-	public string TransformFunction(FilterFunctionType type, IList<IPropertyValue> parameters)
+	public string TransformFunction(string entityName, string propertyName, FilterFunctionType type, IList<IPropertyValue> parameters)
 	{
 		switch (type)
 		{
@@ -55,7 +55,7 @@ public class SQLDialectConverter : IDialectExpressionConverter
 			case FilterFunctionType.trim:
 				break;
 			case FilterFunctionType.@in:
-				break;
+				return $"{GetEntityWithPropertyName(entityName, propertyName)} IN({string.Join(',', parameters.Select(x => GetPropertyValue(x)))})";
 			case FilterFunctionType.day:
 				break;
 			case FilterFunctionType.date:
@@ -97,17 +97,23 @@ public class SQLDialectConverter : IDialectExpressionConverter
 		throw new ODataParserException($"Unable to process function. {type}");
 
 	}
-	
-	private string GetPropertyOperatorTypeValue(PropertyOperatorType data)
+
+	private object GetEntityWithPropertyName(string entityName, string propertyName)
+	{
+		if (string.IsNullOrEmpty(entityName)) return propertyName;
+		else return $"{entityName}.{propertyName}";
+	}
+
+	private string GetPropertyOperatorTypeValue(PropertyOperatorType data, IPropertyValue value)
 	{
 		switch (data)
 		{
 			case PropertyOperatorType.none:
 				return string.Empty;
 			case PropertyOperatorType.eq:
-				return "=";
+				return value is EntityValue && ((EntityValue)value).Value != "null" ? "=" : "is";
 			case PropertyOperatorType.ne:
-				return "<>";
+				return value is EntityValue && ((EntityValue)value).Value != "null" ? "<>" : "is not";
 			case PropertyOperatorType.gt:
 				return ">";
 			case PropertyOperatorType.ge:
@@ -125,14 +131,16 @@ public class SQLDialectConverter : IDialectExpressionConverter
 	{
 		if (data is EntityValue)
 			return ((EntityValue)data).Value;
-		
+
 		if (data is EntityPropertyPair)
 		{
-			var item = ((EntityPropertyPair)data);
+			var item = (EntityPropertyPair)data;
+
 			if (string.IsNullOrEmpty(item.Entity))
 				return $"{_builder.GetEntityAlias(_builder.BaseEntityName)}.{item.Property}";
 			else
-				return $"{_builder.GetEntityAlias(item.Entity)}.{item.Property}";			}
+				return $"{_builder.GetEntityAlias(item.Entity)}.{item.Property}";
+		}
 
 		throw new ODataParserException($"Unable to parse PropertyValue type [{data}]");
 	}

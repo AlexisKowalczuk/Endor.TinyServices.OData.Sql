@@ -26,7 +26,7 @@ public class DataAccess : IDataAccess
 
 		DataTable dt = new DataTable();
 		dt.Clear();
-		
+
 		var columns = new List<string>();
 
 		for (int i = 0; i < reader.FieldCount; i++)
@@ -46,7 +46,7 @@ public class DataAccess : IDataAccess
 		}
 
 		return dt;
-		
+
 	}
 
 }
