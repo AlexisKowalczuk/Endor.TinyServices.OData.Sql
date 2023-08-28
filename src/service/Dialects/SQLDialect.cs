@@ -56,12 +56,15 @@ public class SQLDialect : IQueryDialect
 
 		//REMOVE RONUM FROM QUERY AFTER EXCEUTION
 		//CHANGE "ORDER BY ID" TO CUSTOM IDENTIFIER USING FLUENT CONFIG
+		var item = await _provider.GetEntity(builder.BaseEntityName);
+		var refEntityId = AttributeHelper.GetIdForEntity(item);
+
 		var queryString = @$"
 					DECLARE @N INT = {number}
 					SELECT *
 					FROM (
 								{builder.ToString().Substring(0, keyIndex)}
-								ROW_NUMBER() OVER(ORDER BY [{builder.GetBaseMetaParameter().Name}].[{ODataConventions.PropertyIndentifierConvention}]) AS RoNum,
+								ROW_NUMBER() OVER(ORDER BY [{builder.GetBaseMetaParameter().Name}].[{refEntityId}]) AS RoNum,
 								{builder.ToString().Substring(keyIndex, builder.ToString().Length - keyIndex)}
 							) AS tbl
 					WHERE @N < tbl.RoNum

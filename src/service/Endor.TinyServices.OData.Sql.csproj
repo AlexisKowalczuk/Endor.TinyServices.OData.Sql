@@ -12,9 +12,9 @@
 	<PackageIconUrl>https://i.imgur.com/Wvo5Jjm.jpg</PackageIconUrl>
 	<PackageProjectUrl>https://github.com/AlexisKowalczuk/Endor.TinyServices.OData.SQL</PackageProjectUrl>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<AssemblyVersion>1.0.0</AssemblyVersion>
-	<FileVersion>1.0.0</FileVersion>
-	<Version>1.1.0</Version>
+	<AssemblyVersion>1.2.0</AssemblyVersion>
+	<FileVersion>1.2.0</FileVersion>
+	<Version>1.2.0</Version>
 	<Authors>AKowalczuk</Authors>
 </PropertyGroup>
 
