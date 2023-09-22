@@ -31,7 +31,7 @@ public class DataAccess : IDataAccess
 
 		for (int i = 0; i < reader.FieldCount; i++)
 		{
-			dt.Columns.Add(reader.GetName(i));
+			dt.Columns.Add(reader.GetName(i), reader.GetFieldType(i));
 		}
 
 		while (reader.Read())

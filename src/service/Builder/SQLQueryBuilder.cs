@@ -13,7 +13,7 @@ public class SQLQueryBuilder : ODataBuilder
 		var result = new List<string>();
 		foreach (var item in _metadata)
 		{
-			result.Add(item.GetColumnsString());
+			result.Add(item.Value.GetColumnsString());
 		}
 
 		return string.Join(',', result);

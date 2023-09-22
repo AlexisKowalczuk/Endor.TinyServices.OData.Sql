@@ -7,6 +7,7 @@ using Endor.TinyServices.OData.Interfaces.Dialect;
 using Endor.TinyServices.OData.Interfaces.Schema;
 using Endor.TinyServices.OData.Parser;
 using Endor.TinyServices.OData.Sql.Builder;
+using System.Reflection;
 
 namespace Endor.TinyServices.OData.Sql.Dialects;
 
@@ -35,7 +36,7 @@ public class SQLDialect : IQueryDialect
 		var tableAlias = builder.GetNewEntityIndex();
 
 		var properties = item.GetProperties().Where(i => i.PropertyType.Namespace == "System" || i.PropertyType.IsEnum).ToList();
-		builder.AddMetadata(new SQLMetaParameters() { Entity = item, Name = tableAlias, Properties = properties });
+		builder.AddMetadata(entityName, new SQLMetaParameters() { Entity = item, Name = tableAlias, Properties = properties.ToDictionary(x => x.Name) });
 
 		builder.SetQuery($"{builder.ToString()}SELECT {builder.GetColumnsString()} FROM {tableName} AS [{tableAlias}]");
 		return builder;
@@ -89,8 +90,8 @@ public class SQLDialect : IQueryDialect
 
 		if (builder.TenantId != null) tableName = $"[{builder.TenantId}].[{tableName}]";
 
-		var meta = new SQLMetaParameters() { Entity = item, Name = tableAlias, TableName = tableName, Properties = properties };
-
+		var meta = new SQLMetaParameters() { Entity = item, Name = tableAlias, TableName = tableName, Properties = properties.ToDictionary(x => x.Name) };
+		
 		SQLMetaParameters parameter = (SQLMetaParameters)builder.GetBaseMetaParameter();
 
 		var rawQuery = builder.ToString();
@@ -112,7 +113,7 @@ public class SQLDialect : IQueryDialect
 					LEFT JOIN {tableName} AS [{tableAlias}] ON [{tableAlias}].[{refEntityId}] = [{parameter.Name}].[{refAttribute.Name}]
 					{afterJoinStatement}";
 
-		builder.AddMetadata(meta);
+		builder.AddMetadata(entityName, meta);
 		builder.SetQuery(newQuery);
 
 		await ProcessAdditionalInfo(entityName, additionalInfo, builder);
@@ -183,10 +184,10 @@ public class SQLDialect : IQueryDialect
 	{
 		var metaProperties = builder.GetMetaProperties(entity);
 		var alias = builder.GetEntityAlias(entity);
-		var propUnkwons = propNames.Where(x => !metaProperties.Any(p => p.Name == x));
+		var propUnkwons = propNames.Where(x => !metaProperties.Any(p => p.Value.Name == x));
 		if (propUnkwons.Any()) throw new ODataParserException($"Unable to process select statement. The main entity has no contains definition of [{string.Join(',', propUnkwons)}]");
 
-		var itemsToRemove = metaProperties.Where(x => !propNames.Any(name => name == x.Name)).Select(x => x.Name).ToList();
+		var itemsToRemove = metaProperties.Where(x => !propNames.Any(name => name == x.Key)).Select(x => x.Key).ToList();
 
 		var query = builder.ToString();
 		foreach (var item in itemsToRemove)

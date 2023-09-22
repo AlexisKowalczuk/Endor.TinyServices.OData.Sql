@@ -12,9 +12,9 @@
 	<PackageIconUrl>https://i.imgur.com/Wvo5Jjm.jpg</PackageIconUrl>
 	<PackageProjectUrl>https://github.com/AlexisKowalczuk/Endor.TinyServices.OData.SQL</PackageProjectUrl>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<AssemblyVersion>1.2.0</AssemblyVersion>
-	<FileVersion>1.2.0</FileVersion>
-	<Version>1.2.0</Version>
+	<AssemblyVersion>1.2.1</AssemblyVersion>
+	<FileVersion>1.2.1</FileVersion>
+	<Version>1.2.1</Version>
 	<Authors>AKowalczuk</Authors>
 </PropertyGroup>
 
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Endor.TinyServices.OData" Version="1.1.0" />
+    <PackageReference Include="Endor.TinyServices.OData" Version="1.2.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
   </ItemGroup>
 

@@ -9,7 +9,7 @@ public class SQLMetaParameters : ODataMetaParameters
 
 	public override string GetColumnsString()
 	{
-		return string.Join(',', Properties.Select(c => $"[{Name}].[{c.Name}] {Name}{ODataConventions.ColumnSeparator}{c.Name}"));
+		return string.Join(',', Properties.Select(c => $"[{Name}].[{c.Key}] {Name}{ODataConventions.ColumnSeparator}{c.Key}"));
 	}
 
 }
